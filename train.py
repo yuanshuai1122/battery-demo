@@ -1,4 +1,6 @@
 import os
+import shutil
+
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -15,6 +17,26 @@ def str_to_seconds(time_str: str):
         return int(split_day[0]) * 86400 + int(split_day[1]) * 3600 + int(time[1]) * 60 + int(time[2])
     else:
         return int(time[0]) * 3600 + int(time[1]) * 60 + int(time[2])
+
+#获取文件最后一行非空行
+def get_file_last_line(file_with_path):
+    df = pd.read_excel(file_with_path)
+    return df.tail(1)
+
+
+# 删除某个文件或者某个文件夹下所有文件
+def delete_all_files_in_folder(folder_path):
+    print(f"开始删除某个文件夹/文件， folder_path:{folder_path}")
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)  # 删除文件或链接
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)  # 删除目录
+        except Exception as e:
+            print(f'Failed to delete {file_path}. Reason: {e}')
+    print(f"删除某个文件夹/文件完成， folder_path:{folder_path}")
 
 
 # 文件处理
@@ -35,8 +57,7 @@ def handle_files(file_with_path: str):
     # 只保留需要的数据
     df = df[['测试时间', '步骤时间', '电流/A', '容量/Ah', '电压/V', '辅助温度/℃', '工步状态']]
     # 保留符合条件的行
-    #df = df[(df['工步状态'] == 'CCC') | (df['工步状态'] == 'CVC') | (df['工步状态'] == '工步状态')]
-    df = df[(df['工步状态'] == 'CCC') | (df['工步状态'] == '工步状态')]
+    df = df[(df['工步状态'] == 'CCC') | (df['工步状态'] == 'CVC') | (df['工步状态'] == '工步状态')]
 
     # 处理新文件路径
     file_split = file_with_path.split('/')
@@ -47,8 +68,10 @@ def handle_files(file_with_path: str):
     df.to_excel(new_file_path, index=False)
     return new_file_path
 
+# 分割文件
 def split_file(file_with_path, split_path):
-
+    # 清空文件夹
+    delete_all_files_in_folder('data/split')
     # 读取文件
     df = pd.read_excel(file_with_path)
 
@@ -61,19 +84,36 @@ def split_file(file_with_path, split_path):
 
     # 按照指定的行索引拆分DataFrame并保存为Excel文件
     start = 0
+    last_part = pd.DataFrame()
     for i in indices:
         print(f"开始切分第{i}个文件.start:{start}")
         # 如果不是第一篇 需要跳过文字行
         if start != 0:
             start = start + 1
         df_part = df.iloc[start:i]
+        df_part['测试时间'] = pd.to_numeric(df_part['测试时间'].apply(str_to_seconds), errors='coerce')
+        df_part['步骤时间'] = pd.to_numeric(df_part['步骤时间'].apply(str_to_seconds), errors='coerce')
+
+        # 获取符合条件的最后一行的步骤时间
+        filtered_df_CCC = df_part[df_part['工步状态'] == 'CCC']
+        last_operate_time = filtered_df_CCC.iloc[-1]['步骤时间']
+        # 更新符合条件的某一列的值
+        filtered_df_CVC = df_part[df_part['工步状态'] == 'CVC']
+        filtered_df_CVC['步骤时间'] = filtered_df_CVC['步骤时间'] + last_operate_time
+        # 将更新后的结果写入原始数据框
+        df_part.update(filtered_df_CVC)
+
+        # # 将步骤时间列的值覆盖到测试时间列的值
+        # df['测试时间'] = df['步骤时间']
+
         df_part.to_excel(split_path + f'/split_{start}_{i}.xlsx', index=False)
         start = i
+        last_part = df_part
     print(f'文件切分完毕，返回split_path:{split_path}')
     return split_path
 
 # 画曲线图
-def draw_img(folder_path, y_column):
+def draw_img(folder_path, x_column, y_column):
     # 初始化一个空的 DataFrame 来保存所有文件的数据
     all_data = pd.DataFrame()
 
@@ -87,18 +127,7 @@ def draw_img(folder_path, y_column):
             # 将数据添加到 all_data DataFrame
             all_data = pd.concat([all_data, df])
 
-    all_data['测试时间'] = pd.to_numeric(all_data['测试时间'].apply(str_to_seconds), errors='coerce')
-    all_data['步骤时间'] = pd.to_numeric(all_data['步骤时间'].apply(str_to_seconds), errors='coerce')
-    all_data['电流/A'] = pd.to_numeric(all_data['电流/A'], errors='coerce')
-    all_data['容量/Ah'] = pd.to_numeric(all_data['容量/Ah'], errors='coerce')
-    all_data['电压/V'] = pd.to_numeric(all_data['电压/V'], errors='coerce')
-    all_data['辅助温度/℃'] = pd.to_numeric(all_data['辅助温度/℃'], errors='coerce')
-
     all_data.to_excel('data/tmp/tmp.xlsx', index=False)
-
-
-    # 指定横纵坐标为 Excel 的列
-    x_column = '测试时间'
 
     # 中文显示
     plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
@@ -111,15 +140,16 @@ def draw_img(folder_path, y_column):
 
     plt.xlabel(x_column)
     plt.ylabel(y_column)
-    plt.title(x_column + y_column + "曲线")
+    plt.title(x_column + '-' + y_column + "曲线")
 
     plt.show()
 
 
 if __name__ == '__main__':
-    # new_file = handle_files('data/3号电池.xlsx')
-    # path = split_file(new_file, 'data/split')
-    # draw_img(path)
-    draw_img('data/split', '辅助温度/℃')
+    new_file = handle_files('data/3号电池_simple.xlsx')
+    path = split_file(new_file, 'data/split')
+    draw_img(path, '步骤时间', '容量/Ah')
+    #draw_img('data/split', '电流/A')
+    #print(get_file_last_line("data/split/split_0_34.xlsx"))
 
 
