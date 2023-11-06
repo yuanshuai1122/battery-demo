@@ -114,41 +114,36 @@ def split_file(file_with_path, split_path):
 
 # 画曲线图
 def draw_img(folder_path, x_column, y_column):
-    # 初始化一个空的 DataFrame 来保存所有文件的数据
-    all_data = pd.DataFrame()
+    # 画图
+    plt.figure(figsize=(10, 6))
 
     filenames = os.listdir(folder_path)
     # 遍历文件夹中的所有 Excel 文件
     for filename in filenames[::500]:
+    #for filename in filenames:
         if filename.endswith('.xlsx') or filename.endswith('.xls'):
             print("出图前开始处理：", filename)
             # 读取 Excel 文件
             df = pd.read_excel(os.path.join(folder_path, filename))
-            # 将数据添加到 all_data DataFrame
-            all_data = pd.concat([all_data, df])
-
-    all_data.to_excel('data/tmp/tmp.xlsx', index=False)
+            plt.plot(df[x_column], df[y_column], label=filename)
 
     # 中文显示
     plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
-    # plt.rcParams['font.sans-serif'] = ['KaiTi', 'SimHei', 'FangSong']  # 汉字字体,优先使用楷体，如果找不到楷体，则使用黑体
-    # plt.rcParams['font.size'] = 12  # 字体大小
-    # plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
-    # 画图
-    plt.figure(figsize=(10, 6))
-    plt.plot(all_data[x_column], all_data[y_column])
-
     plt.xlabel(x_column)
     plt.ylabel(y_column)
+    plt.legend()
     plt.title(x_column + '-' + y_column + "曲线")
 
     plt.show()
 
 
 if __name__ == '__main__':
-    new_file = handle_files('data/3号电池_simple.xlsx')
-    path = split_file(new_file, 'data/split')
-    draw_img(path, '步骤时间', '容量/Ah')
+#    new_file = handle_files('data/3号电池.xlsx')
+#    path = split_file(new_file, 'data/split')
+#     draw_img('data/split', '步骤时间', '容量/Ah')
+#     draw_img('data/split', '步骤时间', '电流/A')
+#    draw_img('data/split', '步骤时间', '电压/V')
+    draw_img('data/split', '步骤时间', '辅助温度/℃')
     #draw_img('data/split', '电流/A')
     #print(get_file_last_line("data/split/split_0_34.xlsx"))
 
