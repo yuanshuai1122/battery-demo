@@ -134,12 +134,12 @@ def draw_img(folder_path, x_column, y_column):
 
     # 遍历文件夹中的所有 Excel 文件
     filenames = os.listdir(folder_path)
-    for filename in filenames:
+    for filename in filenames[::10]:
         if filename.endswith('.xlsx') or filename.endswith('.xls'):
             print("出图前开始处理：", filename)
             # 读取 Excel 文件
             df = pd.read_excel(os.path.join(folder_path, filename))
-            plt.plot(df[x_column], df[y_column], label=filename)
+            plt.plot(df[x_column], df[y_column], label=filename.split('.')[0])
 
     # 中文显示
     plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
@@ -159,7 +159,7 @@ def draw_img_soh(folder_path, x_column):
     x_values = list()
     # 遍历文件夹中的所有 Excel 文件
     filenames = os.listdir(folder_path)
-    for filename in filenames[::500]:
+    for filename in filenames[::10]:
         # for filename in filenames:
         if filename.endswith('.xlsx') or filename.endswith('.xls'):
             print("SOH出图前开始处理：", filename)
@@ -320,15 +320,15 @@ def handle_all_files():
 
 
 if __name__ == '__main__':
-    new_file = handle_files('data/origin/3号电池.xlsx', 'data/transfer')
-    print(new_file)
+    # new_file = handle_files('data/origin/3号电池.xlsx', 'data/transfer')
+    # print(new_file)
     # path = split_file(new_file, 'data/split', 28.243)
     # print(path)
     # draw_img('data/split', '测试时间', '容量/Ah')
-    # draw_img('data/split', '测试时间', '电流/A')
-    # draw_img('data/split', '测试时间', '电压/V')
-    # draw_img('data/split', '测试时间', '辅助温度/℃')
-    # draw_img_soh('data/split', '测试时间', 'SOH')
+    #draw_img('data/split', '测试时间', '电流/A')
+    #draw_img('data/split', '测试时间', '电压/V')
+    #draw_img('data/split', '测试时间', '辅助温度/℃')
+    draw_img_soh('data/split', '测试时间')
 
     #train_path = combined_data('data/split', 'data/train')
     #train_model('data/train/train_data.xlsx')
