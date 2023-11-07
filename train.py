@@ -320,8 +320,8 @@ def handle_all_files():
 
 
 if __name__ == '__main__':
-    # new_file = handle_files('data/origin/3号电池.xlsx', 'data/transfer')
-    # print(new_file)
+    new_file = handle_files('data/origin/3号电池.xlsx', 'data/transfer')
+    print(new_file)
     # path = split_file(new_file, 'data/split', 28.243)
     # print(path)
     # draw_img('data/split', '测试时间', '容量/Ah')
@@ -332,7 +332,7 @@ if __name__ == '__main__':
 
     #train_path = combined_data('data/split', 'data/train')
     #train_model('data/train/train_data.xlsx')
-    handle_all_files()
+    #handle_all_files()
 
 
 
