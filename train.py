@@ -20,6 +20,7 @@ def str_to_seconds(time_str: str):
     else:
         return int(time[0]) * 3600 + int(time[1]) * 60 + int(time[2])
 
+
 # 删除某个文件或者某个文件夹下所有文件
 def delete_all_files_in_folder(folder_path):
     print(f"开始删除文件夹/文件， folder_path:{folder_path}")
@@ -64,6 +65,7 @@ def handle_files(file_with_path: str):
     df.to_excel(new_file_path, index=False)
     return new_file_path
 
+
 # 分割文件
 def split_file(file_with_path, split_path):
     # 清空文件夹
@@ -101,10 +103,9 @@ def split_file(file_with_path, split_path):
         filtered_df_cvc['测试时间'] = filtered_df_cvc['测试时间'].copy() + last_operate_time
         # 将更新后的结果写入原始数据框
         df_part.update(filtered_df_cvc)
-
         # 计算SOH到某SOH列
         last_capacity = df_part['容量/Ah'].iloc[-1]
-        df_part['SOH'] = round(last_capacity / 30, 2)
+        df_part['SOH'] = round(last_capacity / 28.243, 2)
 
         # 写入到excel
         df_part.to_excel(split_path + f'/第_{index + 1}_循环.xlsx', index=False)
@@ -113,6 +114,7 @@ def split_file(file_with_path, split_path):
     print(f'文件切分完毕，返回split_path:{split_path}')
     return split_path
 
+
 # 画曲线图
 def draw_img(folder_path, x_column, y_column):
     # 画图
@@ -120,8 +122,7 @@ def draw_img(folder_path, x_column, y_column):
 
     # 遍历文件夹中的所有 Excel 文件
     filenames = os.listdir(folder_path)
-    for filename in filenames[::500]:
-    #for filename in filenames:
+    for filename in filenames:
         if filename.endswith('.xlsx') or filename.endswith('.xls'):
             print("出图前开始处理：", filename)
             # 读取 Excel 文件
@@ -137,8 +138,8 @@ def draw_img(folder_path, x_column, y_column):
 
     plt.show()
 
-def draw_img_soh(folder_path, x_column):
 
+def draw_img_soh(folder_path, x_column):
     # y轴
     y_column = 'SOH'
     # 声明所有y值
@@ -147,7 +148,7 @@ def draw_img_soh(folder_path, x_column):
     # 遍历文件夹中的所有 Excel 文件
     filenames = os.listdir(folder_path)
     for filename in filenames[::500]:
-    #for filename in filenames:
+        # for filename in filenames:
         if filename.endswith('.xlsx') or filename.endswith('.xls'):
             print("SOH出图前开始处理：", filename)
             # 读取 Excel 文件
@@ -168,25 +169,26 @@ def draw_img_soh(folder_path, x_column):
 
 
 # 数据合并
-def combined_data(folder_path, target_path):
+def combined_data(folder_path, target_path, circle_list):
+    print(f'开始处理文件合并，folder_path:{folder_path}, target_path:{target_path}, circle_list:{circle_list}')
+    delete_all_files_in_folder(target_path)
     # 定义一个空的DataFrame用于存储拼接后的数据
     combined_data = pd.DataFrame()
     # 遍历文件夹下的文件
     for filename in os.listdir(folder_path):
         if filename.endswith(".xlsx") or filename.endswith(".xls"):
-            print('合并处理文件:', filename)
-            if filename.split('_')[1] == 1:
-                print('跳过不合理数据: ', filename)
-                continue
-            # 文件地址
-            file_path = os.path.join(folder_path, filename)
-            # 读取Excel文件内容
-            df = pd.read_excel(file_path)
-            # 将数据拼接到combined_data中
-            combined_data = pd.concat([combined_data, df], ignore_index=True)
+            if filename.split('_')[1] in circle_list:
+                print('合并处理文件:', filename)
+                # 文件地址
+                file_path = os.path.join(folder_path, filename)
+                # 读取Excel文件内容
+                df = pd.read_excel(file_path)
+                # 将数据拼接到combined_data中
+                combined_data = pd.concat([combined_data, df], ignore_index=True)
 
+    target_path = target_path + "/train_data.xlsx"
     # 将拼接后的数据保存到新的Excel文件中
-    combined_data.to_excel(target_path + "/train_data.xlsx", index=False)
+    combined_data.to_excel(target_path, index=False)
 
     return target_path
 
@@ -200,7 +202,7 @@ def train_model(file_with_path):
     # df.fillna(df.mean(), inplace=True)
 
     # 选择需要的参数
-    features = df[['步骤时间', '电流/A', '电压/V', '辅助温度/℃', '容量/Ah']]
+    features = df[['步骤时间', '电流/A', '电压/V', '辅助温度/℃']]
     labels = df['SOH']  # 假设"SOH"是我们的目标变量
 
     print("数据集处理完毕")
@@ -257,8 +259,30 @@ def train_model(file_with_path):
     # 保存scaler
     dump(scaler, './scalers/scaler.joblib')
 
+# 获取训练数据集
+def get_train_files(folder_path, move_path):
 
+    # 清空要移动的目标文件夹
+    delete_all_files_in_folder(move_path)
 
+    # 定义一个空的DataFrame用于存储拼接后的数据
+    capacity_list = []
+    # 遍历文件夹下的文件
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".xlsx") or filename.endswith(".xls"):
+            print('筛选文件:', filename)
+            # 文件地址
+            file_path = os.path.join(folder_path, filename)
+            # 读取Excel文件内容
+            df = pd.read_excel(file_path)
+            last_capacity = df['容量/Ah'].iloc[-1]
+            # 只保存大于70% DOD
+            if last_capacity >= 22:
+                capacity_list.append(filename.split('_')[1])
+            else:
+                shutil.move(file_path, move_path)
+
+    return capacity_list
 
 
 if __name__ == '__main__':
@@ -269,8 +293,11 @@ if __name__ == '__main__':
     # draw_img('data/split', '测试时间', '电压/V')
     # draw_img('data/split', '测试时间', '辅助温度/℃')
     # draw_img_soh('data/split', '测试时间', 'SOH')
-    #train_path = combined_data('data/split', 'data/train')
-    train_model('data/train/train_data.xlsx')
+    #circle_list = get_train_files(path, 'data/dod_70/')
+    circle_list = get_train_files('data/split', 'data/dod_70/')
+    train_path = combined_data('data/split', 'data/train', circle_list)
+    train_model(train_path)
 
-
-
+if __name__ == '__main__':
+    new_file = handle_files('data/4号电池.xlsx')
+    path = split_file(new_file, 'data/split')
