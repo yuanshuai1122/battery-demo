@@ -13,12 +13,16 @@ from tensorflow.python.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense
 
 # 带天数的字符串转秒 2-05:50:36
 def str_to_seconds(time_str: str):
-    time = time_str.split(":")
-    if "-" in time[0]:
-        split_day = time[0].split("-")
-        return int(split_day[0]) * 86400 + int(split_day[1]) * 3600 + int(time[1]) * 60 + int(time[2])
+    # 不包含时间格式直接返回
+    if ':' in time_str:
+        time = time_str.split(":")
+        if "-" in time[0]:
+            split_day = time[0].split("-")
+            return int(split_day[0]) * 86400 + int(split_day[1]) * 3600 + int(time[1]) * 60 + int(time[2])
+        else:
+            return int(time[0]) * 3600 + int(time[1]) * 60 + int(time[2])
     else:
-        return int(time[0]) * 3600 + int(time[1]) * 60 + int(time[2])
+        return time_str
 
 
 # 删除某个文件或者某个文件夹下所有文件
@@ -37,9 +41,11 @@ def delete_all_files_in_folder(folder_path):
 
 
 # 文件处理
-def handle_files(file_with_path: str):
+def handle_files(file_with_path: str, new_folder):
     # 读取Excel文件
-    print("开始读取excel:", file_with_path)
+    print(f"开始读取excel:{file_with_path}, new_folder:{new_folder}")
+    #delete_all_files_in_folder(new_folder)
+
     df = pd.read_excel(file_with_path, sheet_name='具体数据系列2', header=None)
     # 删除第一行（原的表头）
     df = df.iloc[1:]
@@ -55,11 +61,11 @@ def handle_files(file_with_path: str):
     df = df[['测试时间', '步骤时间', '电流/A', '容量/Ah', '电压/V', '辅助温度/℃', '工步状态']]
     # 保留符合条件的行
     df = df[(df['工步状态'] == 'CCC') | (df['工步状态'] == 'CVC') | (df['工步状态'] == '工步状态')]
-
+    df['步骤时间'] = pd.to_numeric(df['步骤时间'].astype(str).apply(str_to_seconds), errors='coerce')
     # 处理新文件路径
     file_split = file_with_path.split('/')
-    new_file_name = 'new_img_' + file_split[-1]
-    new_file_path = "".join(file_split[:-1]) + "/" + new_file_name
+    new_file_name = 'new_origin_' + file_split[-1]
+    new_file_path = new_folder + "/" + new_file_name
     print("处理完毕, 原地址：", file_with_path, "新地址:", new_file_path)
     # 保存新excel
     df.to_excel(new_file_path, index=False)
@@ -67,9 +73,9 @@ def handle_files(file_with_path: str):
 
 
 # 分割文件
-def split_file(file_with_path, split_path):
+def split_file(file_with_path, split_path, init_capacity):
     # 清空文件夹
-    delete_all_files_in_folder('data/split')
+    delete_all_files_in_folder(split_path)
     # 读取文件
     df = pd.read_excel(file_with_path)
 
@@ -88,25 +94,31 @@ def split_file(file_with_path, split_path):
         if start != 0:
             start = start + 1
         df_part = df.iloc[start:value].copy()
-        df_part['测试时间'] = pd.to_numeric(df_part['测试时间'].apply(str_to_seconds), errors='coerce')
-        df_part['步骤时间'] = pd.to_numeric(df_part['步骤时间'].apply(str_to_seconds), errors='coerce')
         # 删除测试时间列
         df_part = df_part.drop('测试时间', axis=1)
         # 获取符合条件的最后一行的步骤时间
         filtered_df_ccc = df_part[df_part['工步状态'] == 'CCC']
         last_operate_time = filtered_df_ccc.iloc[-1]['步骤时间']
         # 拷贝一列操作到 测试时间
-        df_part['测试时间'] = df_part['步骤时间'].copy()
+        df_part['测试时间'] = df_part['步骤时间']
         # 更新符合条件的某一列的值
         filtered_df_cvc = df_part[df_part['工步状态'] == 'CVC']
         # 更新到测试时间
-        filtered_df_cvc['测试时间'] = filtered_df_cvc['测试时间'].copy() + last_operate_time
+        #filtered_df_cvc['测试时间'] = filtered_df_cvc['测试时间'].copy() + last_operate_time
+        # 更新到测试时间
+        filtered_df_cvc.loc[:, '测试时间'] = filtered_df_cvc.loc[:, '测试时间'].apply(lambda x: x + last_operate_time)
         # 将更新后的结果写入原始数据框
         df_part.update(filtered_df_cvc)
+        # 更新步数
+        start = value
         # 计算SOH到某SOH列
         last_capacity = df_part['容量/Ah'].iloc[-1]
-        df_part['SOH'] = round(last_capacity / 28.243, 2)
+        # 判断是否是70DOD 需要跳过
+        if last_capacity < init_capacity * 0.8:
+            continue
 
+        # 计算SOH
+        df_part['SOH'] = round(last_capacity / init_capacity, 2)
         # 写入到excel
         df_part.to_excel(split_path + f'/第_{index + 1}_循环.xlsx', index=False)
         start = value
@@ -169,22 +181,21 @@ def draw_img_soh(folder_path, x_column):
 
 
 # 数据合并
-def combined_data(folder_path, target_path, circle_list):
-    print(f'开始处理文件合并，folder_path:{folder_path}, target_path:{target_path}, circle_list:{circle_list}')
-    delete_all_files_in_folder(target_path)
+def combined_data(folder_path, target_path):
+    print(f'开始处理文件合并，folder_path:{folder_path}, target_path:{target_path}')
     # 定义一个空的DataFrame用于存储拼接后的数据
     combined_data = pd.DataFrame()
     # 遍历文件夹下的文件
     for filename in os.listdir(folder_path):
         if filename.endswith(".xlsx") or filename.endswith(".xls"):
-            if filename.split('_')[1] in circle_list:
-                print('合并处理文件:', filename)
-                # 文件地址
-                file_path = os.path.join(folder_path, filename)
-                # 读取Excel文件内容
-                df = pd.read_excel(file_path)
-                # 将数据拼接到combined_data中
-                combined_data = pd.concat([combined_data, df], ignore_index=True)
+            print('合并处理文件:', filename)
+            # 文件地址
+            file_path = os.path.join(folder_path, filename)
+            # 读取Excel文件内容
+            df = pd.read_excel(file_path)
+            # 将数据拼接到combined_data中
+            combined_data = pd.concat([combined_data, df], ignore_index=True)
+
 
     target_path = target_path + "/train_data.xlsx"
     # 将拼接后的数据保存到新的Excel文件中
@@ -259,45 +270,69 @@ def train_model(file_with_path):
     # 保存scaler
     dump(scaler, './scalers/scaler.joblib')
 
-# 获取训练数据集
-def get_train_files(folder_path, move_path):
 
-    # 清空要移动的目标文件夹
-    delete_all_files_in_folder(move_path)
+def handle_all_files():
+    new_file = handle_files('data/origin/4号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_4', 28.785)
+    print(path)
 
-    # 定义一个空的DataFrame用于存储拼接后的数据
-    capacity_list = []
-    # 遍历文件夹下的文件
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".xlsx") or filename.endswith(".xls"):
-            print('筛选文件:', filename)
-            # 文件地址
-            file_path = os.path.join(folder_path, filename)
-            # 读取Excel文件内容
-            df = pd.read_excel(file_path)
-            last_capacity = df['容量/Ah'].iloc[-1]
-            # 只保存大于70% DOD
-            if last_capacity >= 22:
-                capacity_list.append(filename.split('_')[1])
-            else:
-                shutil.move(file_path, move_path)
+    new_file = handle_files('data/origin/5号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_5', 28.573)
+    print(path)
 
-    return capacity_list
+    new_file = handle_files('data/origin/6号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_6', 28.117)
+    print(path)
+
+    new_file = handle_files('data/origin/7号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_7', 28.590)
+    print(path)
+
+    new_file = handle_files('data/origin/8号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_8', 28.318)
+    print(path)
+
+    new_file = handle_files('data/origin/9号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_9', 28.096)
+    print(path)
+
+    new_file = handle_files('data/origin/10号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_10', 28.546)
+    print(path)
+
+    new_file = handle_files('data/origin/11号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_11', 28.394)
+    print(path)
+
+    new_file = handle_files('data/origin/12号电池.xlsx', 'data/transfer')
+    print(new_file)
+    path = split_file(new_file, 'data/split_12', 28.690)
+    print(path)
+
 
 
 if __name__ == '__main__':
-    # new_file = handle_files('data/3号电池.xlsx')
-    # path = split_file(new_file, 'data/split')
+    # new_file = handle_files('data/origin/3号电池.xlsx', 'data/transfer')
+    # print(new_file)
+    # path = split_file(new_file, 'data/split', 28.243)
+    # print(path)
     # draw_img('data/split', '测试时间', '容量/Ah')
     # draw_img('data/split', '测试时间', '电流/A')
     # draw_img('data/split', '测试时间', '电压/V')
     # draw_img('data/split', '测试时间', '辅助温度/℃')
     # draw_img_soh('data/split', '测试时间', 'SOH')
-    #circle_list = get_train_files(path, 'data/dod_70/')
-    circle_list = get_train_files('data/split', 'data/dod_70/')
-    train_path = combined_data('data/split', 'data/train', circle_list)
-    train_model(train_path)
 
-if __name__ == '__main__':
-    new_file = handle_files('data/4号电池.xlsx')
-    path = split_file(new_file, 'data/split')
+    #train_path = combined_data('data/split', 'data/train')
+    #train_model('data/train/train_data.xlsx')
+    handle_all_files()
+
+
+
