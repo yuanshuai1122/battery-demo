@@ -243,7 +243,7 @@ def train_model(file_with_path):
 
     # 选择需要的参数
     features = df[['步骤时间', '电流/A', '电压/V', '辅助温度/℃']]
-    labels = df['SOH']  # 假设"SOH"是我们的目标变量
+    labels = df['SOH']  # "SOH"是我们的目标变量
 
     print("数据集处理完毕")
 
@@ -364,14 +364,13 @@ if __name__ == '__main__':
     # print(new_file)
     # path = split_file(new_file, 'data/split', 28.243)
     # print(path)
-    # draw_img('data/split', '测试时间', '容量/Ah')
-    #draw_img('data/split_7', '测试时间', '电流/A', '7号电池')
-    #draw_img('data/split_7', '测试时间', '电压/V', '7号电池')
-    #draw_img('data/split', '测试时间', '辅助温度/℃')
-    draw_img_soh('data/split_7', '循环次数', '7号电池')
+    #draw_img('data/split', '测试时间', '电流/A', '3号电池')
+    #draw_img('data/split', '测试时间', '电压/V', '3号电池')
+    #draw_img('data/split', '测试时间', '辅助温度/℃', '3号电池')
+    #draw_img_soh('data/split', '循环次数', '3号电池')
 
     #train_path = combined_data('data/split', 'data/train')
-    #train_model('data/train/train_data.xlsx')
+    train_model('data/train/train_data.xlsx')
     #handle_all_files()
 
 
