@@ -1,7 +1,5 @@
 import os
 import shutil
-
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -158,14 +156,7 @@ def draw_img(folder_path, x_column, y_column, title):
     plt.show()
 
 
-def moving_average(data, window_size):
-    # 创建一个窗口，窗口大小为window_size
-    window = np.ones(window_size) / window_size
-    # 使用np.convolve函数进行卷积操作，对数据进行平滑处理
-    smoothed_data = np.convolve(data, window, mode='same')
-    return smoothed_data
-
-def draw_img_soh(folder_path, x_column, title):
+def draw_img_soh(folder_path, x_column):
     # y轴
     y_column = 'SOH'
     # 声明所有y值
@@ -173,9 +164,8 @@ def draw_img_soh(folder_path, x_column, title):
     x_values = list()
     # 遍历文件夹中的所有 Excel 文件
     filenames = os.listdir(folder_path)
-    # 根据文件名中的数字进行排序
-    sorted_filenames = sorted(filenames, key=lambda x: int(x.split('_')[1]))
-    for filename in sorted_filenames:
+    for filename in filenames[::500]:
+        # for filename in filenames:
         if filename.endswith('.xlsx') or filename.endswith('.xls'):
             print("SOH出图前开始处理：", filename)
             # 读取 Excel 文件
@@ -183,28 +173,14 @@ def draw_img_soh(folder_path, x_column, title):
             y_values.append(df['SOH'].iloc[-1])
             x_values.append(filename.split('_')[1])
 
-    # 平滑处理
-    window_size = 5  # 窗口大小
-    smoothed_y_values = moving_average(y_values, window_size)
-
-    # 去除开始和结束部分
-    start_index = 10  # 开始索引
-    end_index = -10  # 结束索引
-    x_values = x_values[start_index:end_index]
-    smoothed_y_values = smoothed_y_values[start_index:end_index]
-
     # 画图
     plt.figure(figsize=(10, 6))
-    plt.plot(x_values, smoothed_y_values, linewidth=2)  # 使用平滑后的 y 值，并增加线条宽度
+    plt.plot(x_values, y_values)
     # 中文显示
     plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
     plt.xlabel(x_column)
     plt.ylabel(y_column)
-    plt.title(title + ' ' + x_column + '-SOH 曲线')
-
-    # 设置横坐标刻度间距
-    x_ticks = np.arange(0, len(x_values), 10)  # 每隔5个数据点设置一个刻度
-    plt.xticks(x_ticks)
+    plt.title('测试时间-SOH 曲线')
 
     plt.show()
 
@@ -368,10 +344,10 @@ if __name__ == '__main__':
     #draw_img('data/split_7', '测试时间', '电流/A', '7号电池')
     #draw_img('data/split_7', '测试时间', '电压/V', '7号电池')
     #draw_img('data/split', '测试时间', '辅助温度/℃')
-    draw_img_soh('data/split_7', '循环次数', '7号电池')
+    # draw_img_soh('data/split', '测试时间', 'SOH')
 
     #train_path = combined_data('data/split', 'data/train')
-    #train_model('data/train/train_data.xlsx')
+    train_model('data/train/train_data.xlsx')
     #handle_all_files()
 
 
