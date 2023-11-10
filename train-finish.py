@@ -11,7 +11,7 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from joblib import dump
 from tensorflow.python.keras import Sequential
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.python.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense, SimpleRNN
+from tensorflow.python.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense
 
 
 # 带天数的字符串转秒 2-05:50:36
@@ -122,7 +122,6 @@ def split_file(file_with_path, split_path, init_capacity):
 
         # 计算SOH
         df_part['SOH'] = round(last_capacity / init_capacity, 2)
-        #df_part = df_part[(df_part['工步状态'] == 'CCC')]
         # 写入到excel
         df_part.to_excel(split_path + f'/第_{index + 1}_循环.xlsx', index=False)
         start = value
@@ -250,7 +249,7 @@ def train_model(file_with_path):
     # df.fillna(df.mean(), inplace=True)
 
     # 选择需要的参数
-    # features = df[['测试时间', '电流/A', '电压/V', '辅助温度/℃']]
+    #features = df[['测试时间', '电流/A', '电压/V', '辅助温度/℃']]
     features = df[['测试时间', '电流/A', '电压/V']]
     labels = df['SOH']  # "SOH"是我们的目标变量
 
@@ -264,13 +263,16 @@ def train_model(file_with_path):
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
 
-    # 将数据重塑为RNN模型所需的形状
+    # 将数据重塑为CNN模型所需的形状
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
     X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
 
     # 创建模型
     model = Sequential()
-    model.add(SimpleRNN(units=64, activation='relu', input_shape=(X_train.shape[1], 1)))
+    #model.add(Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(X_train.shape[1], 1)))
+    model.add(Conv1D(filters=64, kernel_size=2, activation='relu', input_shape=(X_train.shape[1], 1)))
+    model.add(MaxPooling1D(pool_size=2))
+    model.add(Flatten())
     model.add(Dense(50, activation='relu'))
     model.add(Dense(1))
 
@@ -316,7 +318,6 @@ def train_model(file_with_path):
 
     # 保存scaler
     dump(scaler, './scalers/scaler.joblib')
-
 
 
 def handle_all_files():
@@ -368,9 +369,9 @@ def handle_all_files():
 
 
 if __name__ == '__main__':
-    # new_file = handle_files('data/origin/7号电池.xlsx', 'data/transfer')
+    # new_file = handle_files('data/origin/3号电池.xlsx', 'data/transfer')
     # print(new_file)
-    # path = split_file(new_file, 'data/split_7', 28.590)
+    # path = split_file(new_file, 'data/split', 28.243)
     # print(path)
     #draw_img('data/split', '测试时间', '电流/A', '3号电池')
     #draw_img('data/split', '测试时间', '电压/V', '3号电池')
